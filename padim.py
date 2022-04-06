@@ -13,6 +13,7 @@
 ############
 # 1. Built-in modules
 import os
+import sys
 
 # 2. Third-party modules
 import numpy as np
@@ -26,6 +27,17 @@ from scipy.spatial.distance import mahalanobis
 from data_loader import MVTecADLoader
 from utils import embedding_concat, plot_fig, draw_auc, draw_precision_recall
 
+# Matplotlib
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use('Agg')
+
+# GC
+import gc
+
+# classification_models
+from classification_models.tfkeras import Classifiers
+
 
 ################
 #   Definition #
@@ -35,12 +47,20 @@ def embedding_net(net_type='res'):
 
     if net_type == 'res':
         # resnet 50v2
-        x = tf.keras.applications.resnet_v2.preprocess_input(input_tensor)
-        model = tf.keras.applications.ResNet50V2(include_top=False, weights='imagenet', input_tensor=x, pooling=None)
+        resnet18, preprocess_input = Classifiers.get('resnet18')
+        x = preprocess_input(input_tensor)
+        model = resnet18(input_tensor=x, weights='imagenet', include_top=False)
+        
+        layer1 = model.get_layer(name='stage2_unit1_bn1').output
+        layer2 = model.get_layer(name='stage3_unit1_bn1').output
+        layer3 = model.get_layer(name='stage4_unit1_bn1').output
+        
+        #x = tf.keras.applications.resnet_v2.preprocess_input(input_tensor)
+        #model = tf.keras.applications.ResNet50V2(include_top=False, weights='imagenet', input_tensor=x, pooling=None)
 
-        layer1 = model.get_layer(name='conv3_block1_preact_relu').output
-        layer2 = model.get_layer(name='conv4_block1_preact_relu').output
-        layer3 = model.get_layer(name='conv5_block1_preact_relu').output
+        #layer1 = model.get_layer(name='conv3_block1_preact_relu').output
+        #layer2 = model.get_layer(name='conv4_block1_preact_relu').output
+        #layer3 = model.get_layer(name='conv5_block1_preact_relu').output
 
     elif net_type == 'eff':
         # efficient net B7
@@ -67,7 +87,7 @@ def padim(category, batch_size, rd, net_type='eff', is_plot=False):
     loader.load(category=category, repeat=1, max_rot=0)
 
     train_set = loader.train.batch(batch_size=batch_size, drop_remainder=True).shuffle(buffer_size=loader.num_train,
-                                                                                       reshuffle_each_iteration=True)
+                                                                                       reshuffle_each_iteration=True)    
     test_set = loader.test.batch(batch_size=1, drop_remainder=False)
 
     net, _shape = embedding_net(net_type=net_type)
@@ -139,6 +159,7 @@ def padim(category, batch_size, rd, net_type='eff', is_plot=False):
     ################
     # upsample
     score_map = tf.squeeze(tf.image.resize(np.expand_dims(dist_list, -1), size=[h, w])).numpy()
+    print(np.shape(score_map))
 
     for i in range(score_map.shape[0]):
         score_map[i] = gaussian_filter(score_map[i], sigma=4)
@@ -171,7 +192,10 @@ def padim(category, batch_size, rd, net_type='eff', is_plot=False):
     #   PATCH Level #
     #################
     # upsample
+    print(np.shape(dist_list))
     score_map = tf.squeeze(tf.image.resize(np.expand_dims(dist_list, -1), size=[224, 224])).numpy()
+    print(np.shape(score_map))
+    print('np.shape(score_map.flatten()) =', np.shape(score_map.flatten()))
 
     for i in range(score_map.shape[0]):
         score_map[i] = gaussian_filter(score_map[i], sigma=4)
@@ -188,7 +212,14 @@ def padim(category, batch_size, rd, net_type='eff', is_plot=False):
     fp_list, tp_list, _ = metrics.roc_curve(gt_mask.flatten(), scores.flatten())
     patch_auc = metrics.auc(fp_list, tp_list)
 
-    precision, recall, threshold = metrics.precision_recall_curve(gt_mask.flatten(), scores.flatten(), pos_label=1)
+    print(np.shape(scores.flatten()))
+    precision, recall, threshold = metrics.precision_recall_curve(gt_mask.astype(np.uint8).flatten(), scores.flatten(), pos_label=1)
+    print('precision =', precision)
+    print(recall)
+    print(threshold)
+    print(np.shape(precision))
+    print(np.shape(recall))
+    print(np.shape(threshold))
     numerator = 2 * precision * recall
     denominator = precision + recall
 
@@ -198,9 +229,19 @@ def padim(category, batch_size, rd, net_type='eff', is_plot=False):
     # get optimal threshold
     f1_list = numerator / denominator
     best_ths = threshold[np.argmax(f1_list).astype(int)]
+    print('best_ths =', best_ths)
+    print('best_f1 =', f1_list[np.argmax(f1_list).astype(int)])
+    print('best_f1 =', np.max(f1_list))
 
     print('[{}] image ROCAUC: {:.04f}\t pixel ROCAUC: {:.04f}'.format(category, img_roc_auc, patch_auc))
-
+    
+    base_line = np.sum(gt_mask.flatten()) / len(gt_mask.flatten())
+    draw_precision_recall(precision, recall, base_line, os.path.join(os.path.join(save_dir,
+                                                                                      'PR1-{}.png'.format(category))))
+    print('#')
+    print(np.shape(test_imgs))
+    print(np.shape(scores))
+    print(np.shape(gt_mask))
     if is_plot is True:
         save_dir = os.path.join(os.getcwd(), 'img')
         if os.path.isdir(save_dir) is False:

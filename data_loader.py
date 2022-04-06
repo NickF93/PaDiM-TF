@@ -27,7 +27,7 @@ import tensorflow as tf
 #   CLASS #
 ###########
 class MVTecADLoader(object):
-    base_path = r'D:\mvtec_ad'
+    base_path = r'/tmp/mvtec_ad'
 
     train, test = None, None
     num_train, num_test = 0, 0
@@ -105,8 +105,8 @@ class MVTecADLoader(object):
                 else:
                     mask_path = os.path.join(os.path.join(self.base_path, category), 'ground_truth/{}'.format(_label))
                     _mask_path = os.path.join(mask_path, '{}_mask.png'.format(_files.split('.')[0]))
-                    mask = cv2.resize(cv2.imread(_mask_path, flags=cv2.IMREAD_GRAYSCALE), dsize=(256, 256)) / 255
-                    mask = mask[16:-16, 16:-16]
+                    mask = cv2.resize(cv2.imread(_mask_path, flags=cv2.IMREAD_GRAYSCALE), dsize=(224, 224)) / 255
+                    #mask = mask[16:-16, 16:-16]
                     mask = tf.convert_to_tensor(mask, dtype=tf.int32)
 
                 x.append(img)
@@ -129,8 +129,8 @@ class MVTecADLoader(object):
         b, g, r = cv2.split(img)
         img = cv2.merge([r, g, b])
 
-        img = cv2.resize(img, dsize=(256, 256))
+        img = cv2.resize(img, dsize=(224, 224))
 
-        img = img[16:-16, 16:-16, :]
+        #img = img[16:-16, 16:-16, :]
 
         return img

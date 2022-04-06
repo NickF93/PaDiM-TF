@@ -19,6 +19,8 @@ import matplotlib
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
 
 from skimage import morphology
 from skimage.segmentation import mark_boundaries
@@ -34,8 +36,7 @@ def embedding_concat(l1, l2):
     _, h2, w2, c2 = l2.shape
 
     s = int(h1 / h2)
-    x = tf.compat.v1.extract_image_patches(l1, ksizes=[1, s, s, 1], strides=[1, s, s, 1], rates=[1, 1, 1, 1],
-                                           padding='VALID')
+    x = tf.image.extract_patches(l1, sizes=[1, s, s, 1], strides=[1, s, s, 1], rates=[1, 1, 1, 1], padding='VALID')
     x = tf.reshape(x, (bs, -1, h2, w2, c1))
 
     col_z = []
@@ -57,6 +58,12 @@ def plot_fig(test_img, scores, gts, threshold, save_dir, class_name):
     vmin = scores.min() * 255.
     for i in range(num):
         img = test_img[i][0]
+        print(np.max(img))
+        print(np.min(img))
+        
+        print(np.shape(img))
+        print(np.shape(scores))
+        print(np.shape(gts))
 
         gt = gts[i].transpose(1, 2, 0).squeeze()
 
